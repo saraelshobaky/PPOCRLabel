@@ -3,6 +3,7 @@ import os
 import shutil
 import random
 import argparse
+from libs.mytools import convert_to_eastern_arabic, generate_rtl_label  #SKS Added
 
 
 # Delete the divided train, val, and test folders and create a new empty folder
@@ -26,6 +27,8 @@ def splitTrainVal(
     val_txt,
     test_txt,
     flag,
+    flipRTL, #SKS Added for arabic adjustments
+    convertArabicDigits, #SKS Added for arabic adjustments
 ):
     data_abs_path = os.path.abspath(root)
     label_file_name = args.detLabelFileName if flag == "det" else args.recLabelFileName
@@ -37,7 +40,15 @@ def splitTrainVal(
         label_record_len = len(label_file_content)
 
         for index, label_record_info in enumerate(label_file_content):
-            image_relative_path, image_label = label_record_info.split("\t")
+            image_relative_path, image_label = label_record_info.split("\t")     
+
+            ################################START: Arabic Case Adjustments (Sara) ############################
+            #SKS  added to flip the line text to be from left to write (Will preserve any Enlish character, puntuation or english digits)
+            image_label = generate_rtl_label(image_label) if flipRTL == True else image_label
+            #SKS  added to convert English digits to Arabic (Hindi) digits  (Note: should be done after the rtl flip not before)
+            image_label = convert_to_eastern_arabic(image_label) if convertArabicDigits == True else image_label
+            ################################End: Arabic Case Adjustments############################
+
             image_name = os.path.basename(image_relative_path)
 
             if flag == "det":
@@ -107,6 +118,8 @@ def genDetRecTrainVal(args):
         detValTxt,
         detTestTxt,
         "det",
+        args.flipRTL, #SKS Added
+        args.convertArabicDigits, #SKS Added
     )
 
     for root, dirs, files in os.walk(args.datasetRootPath):
@@ -121,6 +134,8 @@ def genDetRecTrainVal(args):
                     recValTxt,
                     recTestTxt,
                     "rec",
+                    args.flipRTL, #SKS Added
+                    args.convertArabicDigits, #SKS Added
                 )
             else:
                 continue
@@ -177,6 +192,34 @@ if __name__ == "__main__":
         type=str,
         default="crop_img",
         help="the name of the folder where the cropped recognition dataset is located",
+    )
+
+    #SKS added to handle boolean issue in the command line
+    # Helper function to handle boolean arguments from the command line
+    def str2bool(v):
+        if isinstance(v, bool):
+            return v
+        if v.lower() in ('yes', 'true', 't', 'y', '1'):
+            return True
+        elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+            return False
+        else:
+            raise argparse.ArgumentTypeError('Boolean value expected.')
+
+    #SKS Added
+    parser.add_argument(
+        "--flipRTL",
+        type=str2bool,
+        default=True,
+        help="If set to true will reverse line characters order to be read from left to right, except digits and latin words as Paddle OCR training scan images from left to right only",
+    )
+
+    #SKS Added
+    parser.add_argument(
+        "--convertArabicDigits",
+        type=str2bool,
+        default=True,
+        help="If set to true will convert all English digits to Arabic digits (٠-٩)",
     )
     args = parser.parse_args()
     genDetRecTrainVal(args)

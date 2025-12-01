@@ -22,6 +22,7 @@ import platform
 import subprocess
 import sys
 from functools import partial
+from libs.mytools import my_read_image
 
 import openpyxl
 import cv2
@@ -155,6 +156,10 @@ class MainWindow(QMainWindow):
         default_save_dir=None,
         det_model_dir=None,
         rec_model_dir=None,
+        #SKS added
+        det_model_name=None,
+        rec_model_name=None,
+
         cls_model_dir=None,
         label_font_path=None,
         selected_shape_color=(255, 255, 0),
@@ -197,26 +202,28 @@ class MainWindow(QMainWindow):
             "use_textline_orientation": False,
             "device": self.gpu,
             "lang": self.lang,
-            "text_detection_model_name": "PP-OCRv5_mobile_det",
-            "text_recognition_model_name": "PP-OCRv5_mobile_rec",
             "enable_mkldnn": False,
         }
 
         if det_model_dir is not None:
             params["text_detection_model_dir"] = det_model_dir
+        if det_model_name is not None:
+            params["text_detection_model_name"] = det_model_name
         if rec_model_dir is not None:
             params["text_recognition_model_dir"] = rec_model_dir
+        if rec_model_name is not None:
+            params["text_recognition_model_name"] = rec_model_name
         if cls_model_dir is not None:
             params["text_line_orientation_model_dir"] = cls_model_dir
 
         self.ocr = PaddleOCR(**params)
         self.text_recognizer = TextRecognition(
-            model_name="PP-OCRv5_mobile_rec",
+            model_name=rec_model_name, #modified to load it from command line 
             model_dir=rec_model_dir,
             device=self.gpu,
         )
         self.text_detector = TextDetection(
-            model_name="PP-OCRv5_mobile_det",
+            model_name=det_model_name, #modified to load it from command line
             model_dir=det_model_dir,
             device=self.gpu,
         )
@@ -1394,7 +1401,7 @@ class MainWindow(QMainWindow):
 
     def rotateImg(self, filename, k, _value):
         self.actions.rotateRight.setEnabled(_value)
-        pix = cv2.imdecode(np.fromfile(filename, dtype=np.uint8), cv2.IMREAD_COLOR)
+        pix = my_read_image(filename)
         pix = np.rot90(pix, k)
         ext = os.path.splitext(filename)[1]
         cv2.imencode(ext, pix)[1].tofile(filename)
@@ -2151,9 +2158,7 @@ class MainWindow(QMainWindow):
 
         if unicodeFilePath and os.path.exists(unicodeFilePath):
             self.canvas.verified = False
-            cvimg = cv2.imdecode(
-                np.fromfile(unicodeFilePath, dtype=np.uint8), cv2.IMREAD_COLOR
-            )
+            cvimg = my_read_image(unicodeFilePath)
             height, width, depth = cvimg.shape
             cvimg = cv2.cvtColor(cvimg, cv2.COLOR_BGR2RGB)
             image = QImage(
@@ -2608,9 +2613,7 @@ class MainWindow(QMainWindow):
 
         if mode == "Manual":
             self.result_dic_locked = []
-            img = cv2.imdecode(
-                np.fromfile(self.filePath, dtype=np.uint8), cv2.IMREAD_COLOR
-            )
+            img = my_read_image(self.filePath)
             width, height = self.image.width(), self.image.height()
             for shape in self.canvas.lockedShapes:
                 box = [[int(p[0] * width), int(p[1] * height)] for p in shape["ratio"]]
@@ -2955,7 +2958,7 @@ class MainWindow(QMainWindow):
         self.init_key_list(self.Cachelabel)
 
     def reRecognition(self):
-        img = cv2.imdecode(np.fromfile(self.filePath, dtype=np.uint8), cv2.IMREAD_COLOR)
+        img = my_read_image(self.filePath)
         if self.canvas.shapes:
             self.result_dic = []
             self.result_dic_locked = (
@@ -3039,7 +3042,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Information", "Draw a box!")
 
     def singleRerecognition(self):
-        img = cv2.imdecode(np.fromfile(self.filePath, dtype=np.uint8), cv2.IMREAD_COLOR)
+        img = my_read_image(self.filePath)
         for shape in self.canvas.selectedShapes:
             box = [[int(p.x()), int(p.y())] for p in shape.points]
             if len(box) > 4:
@@ -3084,7 +3087,7 @@ class MainWindow(QMainWindow):
         import time
 
         start = time.time()
-        img = cv2.imdecode(np.fromfile(self.filePath, dtype=np.uint8), cv2.IMREAD_COLOR)
+        img = my_read_image(self.filePath)
         res = self.table_ocr.predict(img)[0]
 
         table_rec_excel_dir = self.lastOpenDir + "/tableRec_excel_output/"
@@ -3224,7 +3227,7 @@ class MainWindow(QMainWindow):
         """
         re-recognise text in a cell
         """
-        img = cv2.imdecode(np.fromfile(self.filePath, dtype=np.uint8), cv2.IMREAD_COLOR)
+        img = my_read_image(self.filePath)
         for shape in self.canvas.selectedShapes:
             box = [[int(p.x()), int(p.y())] for p in shape.points]
 
@@ -3513,9 +3516,7 @@ class MainWindow(QMainWindow):
                 idx = self.getImglabelidx(key)
                 try:
                     img_path = os.path.dirname(base_dir) + "/" + key
-                    img = cv2.imdecode(
-                        np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_COLOR
-                    )
+                    img = my_read_image(img_path)
                     for i, label in enumerate(self.PPlabel[idx]):
                         if label["difficult"]:
                             continue
@@ -3665,7 +3666,7 @@ class MainWindow(QMainWindow):
             self.actions.save.setEnabled(True)
 
     def expandSelectedShape(self):
-        img = cv2.imdecode(np.fromfile(self.filePath, dtype=np.uint8), cv2.IMREAD_COLOR)
+        img = my_read_image(self.filePath)
         for shape in self.canvas.selectedShapes:
             box = [[int(p.x()), int(p.y())] for p in shape.points]
             if len(box) > 4:
@@ -3809,6 +3810,11 @@ def get_main_app(argv=[]):
     )
     arg_parser.add_argument("--det_model_dir", type=str, default=None, nargs="?")
     arg_parser.add_argument("--rec_model_dir", type=str, default=None, nargs="?")
+    
+    #sks added to allow reading the models name from command line arguments
+    arg_parser.add_argument("--det_model_name", type=str, default=None, nargs="?")
+    arg_parser.add_argument("--rec_model_name", type=str, default=None, nargs="?")
+
     arg_parser.add_argument("--rec_char_dict_path", type=str, default=None, nargs="?")
     arg_parser.add_argument("--cls_model_dir", type=str, default=None, nargs="?")
     arg_parser.add_argument(
@@ -3833,6 +3839,11 @@ def get_main_app(argv=[]):
         default_predefined_class_file=args.predefined_classes_file,
         det_model_dir=args.det_model_dir,
         rec_model_dir=args.rec_model_dir,
+        
+        #SKS added to read models name from command line arguments
+        det_model_name=args.det_model_name,
+        rec_model_name=args.rec_model_name,
+
         cls_model_dir=args.cls_model_dir,
         bbox_auto_zoom_center=args.bbox_auto_zoom_center,
         label_font_path=args.label_font_path,

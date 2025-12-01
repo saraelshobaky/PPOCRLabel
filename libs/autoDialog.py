@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from libs.utils import newIcon
+from libs.mytools import my_read_image
 
 logger = logging.getLogger("PPOCRLabel")
 
@@ -40,10 +41,8 @@ class Worker(QThread):
             for img_path in self.img_list:
                 if self.handle == 0:
                     self.listValue.emit(img_path)
-                    if self.model == "paddle":
-                        img = cv2.imdecode(
-                            np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_COLOR
-                        )
+                    if self.model == "paddle":                        
+                        img = my_read_image(img_path)
                         h, w, _ = img.shape
                         if h > 32 and w > 32:
                             result = self.ocr.predict(img)[0]
