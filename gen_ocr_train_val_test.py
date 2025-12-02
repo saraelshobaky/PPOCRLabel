@@ -42,7 +42,7 @@ def splitTrainVal(
         for index, label_record_info in enumerate(label_file_content):
             image_relative_path, image_label = label_record_info.split("\t")     
 
-            ################################START: Arabic Case Adjustments (Sara) ############################
+            ################################START: Arabic Case Adjustments ############################
             #SKS  added to flip the line text to be from left to write (Will preserve any Enlish character, puntuation or english digits)
             image_label = generate_rtl_label(image_label) if flipRTL == True else image_label
             #SKS  added to convert English digits to Arabic (Hindi) digits  (Note: should be done after the rtl flip not before)

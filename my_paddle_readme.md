@@ -138,26 +138,43 @@ $ vim [PARENT_DIR]/PaddleOCR/configs/rec/PP-OCRv5/multi_language/arabic_PP-OCRv5
 ```
 
 
-### Train the model
+### Finetuning the model
 ```
 $ cd [PARENT_DIR]/PaddleOCR/
 $ conda activate paddle-label-train-env
+```
 
-$ python3 tools/train.py -c configs/rec/PP-OCRv5/multi_language/arabic_PP-OCRv5_mobile_rec.yaml \
-  -o Global.pretrained_model=[PARENT_DIR]/paddle_models/original/arabic_PP-OCRv5_mobile_rec/arabic_PP-OCRv5_mobile_rec_pretrained
+#### Adjust the config file
+```
+$ vi configs/rec/PP-OCRv5/multi_language/arabic_PP-OCRv5_mobile_rec.yaml
+```
+-- ensure that you downloaded the arabic_PP-OCRv5_mobile_rec_pretrained.pdparams in the pretrained model path, as the pdiparams file is not re-trainable. Also ensure that the path of the config parameter 'pretrained_model' is absolute without '~' 
+-- Adjust the 'label_file_list' param twice in the file
 
+##### For small GPU memory
+- You can decrease the batch size 2x or 4x but you have to decrease the learning rate also with same amount 2x or 4x. 
+- Also you may decrease the number of workers
+- You can also skip the data augmentation as it may not be need in text documents, as it fits the scenes only.
+- What we did currently is to used an Amplifier only and didn't go through the above comments yet 
+```
+  use_visualdl: true #false  # <<<< CAHNGED 
+  vdl_log_dir: ./output/vdl_log/   # <<<  ADDED (Where the graphs go)
+  # --- AMP SETTINGS ADDED (To save memory) ---
+  use_amp: true                    # <<< ADDED
+  scale_loss: 1024.0               # <<< ADDED
+  use_dynamic_loss_scaling: true   # <<< ADDED
+```
 
-#OR this command not sure which is correct (TOCHECK)
-$ python3 tools/train.py -c configs/rec/PP-OCRv5/multi_language/arabic_PP-OCRv5_mobile_rec.yaml \
-   -o Global.pretrained_model=[PARENT_DIR]/paddle_models/original/arabic_PP-OCRv5_mobile_rec/inference.pdiparams
-
-
+#### Train the model
+```
+$ python tools/train.py -c configs/rec/PP-OCRv5/multi_language/arabic_PP-OCRv5_mobile_rec.yaml
 ```
 
 
---> original arabic model path: [PARENT_DIR]/paddle_models/original/arabic_PP-OCRv5_mobile_rec/inference.pdiparams
 
---> Config file: [PARENT_DIR]/PaddleOCR/configs/rec/PP-OCRv5/multi_language/arabic_PP-OCRv5_mobile_rec.yaml
+
+
+
 
 
 ### Export the model 
