@@ -1,0 +1,152 @@
+Global:
+  model_name: arabic_PP-OCRv5_mobile_rec # To use static model for inference.
+  debug: true
+  use_gpu: true
+  epoch_num: 75
+  log_smooth_window: 20
+  print_batch_step: 10
+  save_model_dir: ./output/arabic_rec_ppocr_v5
+  save_epoch_step: 10
+  eval_batch_step: [0, 1000]
+  cal_metric_during_train: true
+  pretrained_model: /home/sara/data/capmas/vsworkspace/capmas_projects/paddle_models/original/arabic_PP-OCRv5_mobile_rec/arabic_PP-OCRv5_mobile_rec_pretrained #arabic_PP-OCRv5_mobile_rec_pretrained  #sara added
+  checkpoints:
+  save_inference_dir:
+  use_visualdl: true #false  #Sara changed to true to save memory with large batch size
+  vdl_log_dir: ./output/vdl_log/   # <<< SARA ADDED (Where the graphs go)
+  # --- AMP SETTINGS  SARA ADDED (To save memory) ---
+  use_amp: true                    # <<< SARA ADDED
+  scale_loss: 1024.0               # <<< SARA ADDED
+  use_dynamic_loss_scaling: true   # <<< SARA ADDED
+
+  infer_img:
+  character_dict_path: ./ppocr/utils/dict/ppocrv5_arabic_dict.txt
+  max_text_length: &max_text_length 100 #25   Sara Adjusted: default 25
+  infer_mode: false
+  use_space_char: true
+  distributed: true
+  save_res_path: ./output/rec/predicts_arabic_ppocrv5.txt
+  d2s_train_image_shape: [3, 48, 320]  #Changed 320 to 480  
+
+
+Optimizer:
+  name: Adam
+  beta1: 0.9
+  beta2: 0.999
+  lr:
+    name: Cosine
+    #learning_rate: 0.000125 #0.0005  SARA MODIFIED
+    #warmup_epoch: 5
+    learning_rate: 0.00001  # <--- CHANGED: Was 0.000125. Much safer for fine-tuning.
+    warmup_epoch: 0         # <--- CHANGED: Was 5 no need to warmup for fine-tuning.
+  regularizer:
+    name: L2
+    factor: 3.0e-05
+
+
+Architecture:
+  model_type: rec
+  algorithm: SVTR_LCNet
+  Transform:
+  Backbone:
+    name: PPLCNetV3
+    scale: 0.95
+  Head:
+    name: MultiHead
+    head_list:
+      - CTCHead:
+          Neck:
+            name: svtr
+            dims: 120
+            depth: 2
+            hidden_dims: 120
+            kernel_size: [1, 3]
+            use_guide: True
+          Head:
+            fc_decay: 0.00001
+      # - NRTRHead:
+      #     nrtr_dim: 384
+      #     max_text_length: *max_text_length
+
+Loss:
+  name: MultiLoss
+  loss_config_list:
+    - CTCLoss:    
+    - None:
+    # - NRTRLoss:
+
+PostProcess:  
+  name: CTCLabelDecode
+
+Metric:
+  name: RecMetric
+  main_indicator: acc
+  ignore_space: False
+
+Train:
+  dataset:
+    name: MultiScaleDataSet
+    ds_width: false
+    data_dir: ./train_data/
+    ext_op_transform_idx: 1
+    label_file_list:
+    # - ./train_data/train_list.txt
+    - /home/sara/data/capmas/vsworkspace/capmas_projects/train_data/rec/train.txt  #sara modified
+    transforms:
+    - DecodeImage:
+        img_mode: BGR
+        channel_first: false
+    # - RecConAug:
+    #     prob: 0.5
+    #     ext_data_num: 2
+    #     image_shape: [48, 320, 3]
+    #     max_text_length: *max_text_length
+    - RecAug:    #removing it has no impact
+    - MultiLabelEncode:
+        # gtc_encode: NRTRLabelEncode
+    - KeepKeys:
+        keep_keys:
+        - image
+        - label_ctc
+        - label_gtc
+        - length
+        - valid_ratio
+  sampler:
+    name: MultiScaleSampler
+    scales: [[320, 32], [320, 48], [320, 64]]
+    first_bs: &bs 32 #128  #Sara decreased
+    fix_bs: false
+    divided_factor: [8, 16] # w, h
+    is_training: True
+  loader:
+    shuffle: true
+    batch_size_per_card: *bs
+    drop_last: true
+    num_workers: 2 #8 #sara decreased
+Eval:
+  dataset:
+    name: SimpleDataSet
+    data_dir: ./train_data/
+    label_file_list:
+    # - ./train_data/val_list.txt
+    - /home/sara/data/capmas/vsworkspace/capmas_projects/train_data/rec/val.txt  #sara modified
+    transforms:
+    - DecodeImage:
+        img_mode: BGR
+        channel_first: false
+    - MultiLabelEncode:
+        gtc_encode: NRTRLabelEncode
+    - RecResizeImg:
+        image_shape: [3, 48, 320]
+    - KeepKeys:
+        keep_keys:
+        - image
+        - label_ctc
+        - label_gtc
+        - length
+        - valid_ratio
+  loader:
+    shuffle: true
+    drop_last: false
+    batch_size_per_card: 32 #128  #sara decreased
+    num_workers: 1 #4 #sara decreased 
