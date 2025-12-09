@@ -1,33 +1,43 @@
 Global:
-  model_name: arabic_PP-OCRv5_mobile_rec # To use static model for inference.
-  debug: true
+  model_name: arabic_PP-OCRv5_mobile_rec
+  debug: false
   use_gpu: true
-  epoch_num: 75
+  epoch_num: 75 # Fine-tuning usually needs fewer epochs, but 75 is safe.
   log_smooth_window: 20
   print_batch_step: 10
   save_model_dir: ./output/arabic_rec_ppocr_v5
   save_epoch_step: 10
-  eval_batch_step: [0, 1000]
+  eval_batch_step: [0, 500] # ### Check eval more frequently (was 1000)
   cal_metric_during_train: true
-  pretrained_model: /home/sara/data/capmas/vsworkspace/capmas_projects/paddle_models/original/arabic_PP-OCRv5_mobile_rec/arabic_PP-OCRv5_mobile_rec_pretrained #arabic_PP-OCRv5_mobile_rec_pretrained  #sara added
+  
+  # ### POINT THIS TO YOUR PRETRAINED MODEL PATH ###
+  pretrained_model: /home/sara/data/capmas/vsworkspace/capmas_projects/paddle_models/original/arabic_PP-OCRv5_mobile_rec/arabic_PP-OCRv5_mobile_rec_pretrained
+  
   checkpoints:
   save_inference_dir:
-  use_visualdl: true #false  #Sara changed to true to save memory with large batch size
-  vdl_log_dir: ./output/vdl_log/   # <<< SARA ADDED (Where the graphs go)
-  # --- AMP SETTINGS  SARA ADDED (To save memory) ---
-  use_amp: true                    # <<< SARA ADDED
-  scale_loss: 1024.0               # <<< SARA ADDED
-  use_dynamic_loss_scaling: true   # <<< SARA ADDED
-
+  use_visualdl: true # ### Changed to True (useful for monitoring loss curves)
   infer_img:
   character_dict_path: ./ppocr/utils/dict/ppocrv5_arabic_dict.txt
-  max_text_length: &max_text_length 100 #25   Sara Adjusted: default 25
+  
+  # ### CRITICAL: Increased to support "Large document lines"
+  # Was 25. If a line has 80 chars, 25 cuts it off. 
+  # 100 is usually enough for a full line of A4 text.
+  max_text_length: &max_text_length 100 
+  
   infer_mode: false
   use_space_char: true
-  distributed: true
+  distributed: false # ### Set false for single GPU training
   save_res_path: ./output/rec/predicts_arabic_ppocrv5.txt
-  d2s_train_image_shape: [3, 48, 320]  #Changed 320 to 480  
+  
+  # ### Keep Base Shape 320. 
+  # Do not change this to 640. The Sampler handles the resizing.
+  d2s_train_image_shape: [3, 48, 320]
 
+  # ### MEMORY OPTIMIZATION (AMP) ###
+  # Essential for 8GB GPU to run reasonably sized batches
+  use_amp: true
+  scale_loss: 1024.0
+  use_dynamic_loss_scaling: true
 
 Optimizer:
   name: Adam
@@ -35,14 +45,14 @@ Optimizer:
   beta2: 0.999
   lr:
     name: Cosine
-    #learning_rate: 0.000125 #0.0005  SARA MODIFIED
-    #warmup_epoch: 5
-    learning_rate: 0.00001  # <--- CHANGED: Was 0.000125. Much safer for fine-tuning.
-    warmup_epoch: 0         # <--- CHANGED: Was 5 no need to warmup for fine-tuning.
+    # ### LOWERED LR FOR FINE-TUNING ###
+    # 0.0005 is too high for pre-trained weights. 
+    # 0.0001 is safer to prevent destroying learned features.
+    learning_rate: 0.0001 
+    warmup_epoch: 2 # Reduced warmup since we are fine-tuning
   regularizer:
     name: L2
     factor: 3.0e-05
-
 
 Architecture:
   model_type: rec
@@ -64,16 +74,15 @@ Architecture:
             use_guide: True
           Head:
             fc_decay: 0.00001
-      # - NRTRHead:
-      #     nrtr_dim: 384
-      #     max_text_length: *max_text_length
+      - NRTRHead:
+          nrtr_dim: 384
+          max_text_length: *max_text_length # Inherits 100 from Global
 
 Loss:
   name: MultiLoss
   loss_config_list:
-    - CTCLoss:    
-    - None:
-    # - NRTRLoss:
+    - CTCLoss:
+    - NRTRLoss:
 
 PostProcess:  
   name: CTCLabelDecode
@@ -90,20 +99,22 @@ Train:
     data_dir: ./train_data/
     ext_op_transform_idx: 1
     label_file_list:
-    # - ./train_data/train_list.txt
-    - /home/sara/data/capmas/vsworkspace/capmas_projects/train_data/rec/train.txt  #sara modified
+    - /home/sara/data/capmas/vsworkspace/capmas_projects/train_data/rec/train.txt
     transforms:
     - DecodeImage:
         img_mode: BGR
         channel_first: false
+    # ### COMMENTED OUT RecConAug FOR MEMORY ###
+    # Reconstruction Augmentation consumes extra memory and 
+    # can conflict with dynamic widths on small GPUs.
     # - RecConAug:
     #     prob: 0.5
     #     ext_data_num: 2
     #     image_shape: [48, 320, 3]
     #     max_text_length: *max_text_length
-    - RecAug:    #removing it has no impact
+    - RecAug:
     - MultiLabelEncode:
-        # gtc_encode: NRTRLabelEncode
+        gtc_encode: NRTRLabelEncode
     - KeepKeys:
         keep_keys:
         - image
@@ -113,23 +124,32 @@ Train:
         - valid_ratio
   sampler:
     name: MultiScaleSampler
-    scales: [[320, 32], [320, 48], [320, 64]]
-    first_bs: &bs 32 #128  #Sara decreased
+    # ### THE MIXED TEXT SOLUTION ###
+    # Instead of varying height (original), we vary WIDTH.
+    # 320: Perfect for "Small table cells" (no stretching)
+    # 480: Medium text
+    # 640: Perfect for "Large document lines" (no squashing)
+    scales: [[320, 48], [480, 48], [640, 48]]
+    
+    # ### BATCH SIZE FOR 8GB GPU ###
+    # 128 is too big for 8GB VRAM with AMP enabled. 
+    # 32 or 48 is safe. Start with 32.
+    first_bs: &bs 32 
     fix_bs: false
-    divided_factor: [8, 16] # w, h
+    divided_factor: [8, 16] 
     is_training: True
   loader:
     shuffle: true
     batch_size_per_card: *bs
     drop_last: true
-    num_workers: 2 #8 #sara decreased
+    num_workers: 4 # Reduced from 8 to save CPU RAM
+
 Eval:
   dataset:
     name: SimpleDataSet
     data_dir: ./train_data/
     label_file_list:
-    # - ./train_data/val_list.txt
-    - /home/sara/data/capmas/vsworkspace/capmas_projects/train_data/rec/val.txt  #sara modified
+    - /home/sara/data/capmas/vsworkspace/capmas_projects/train_data/rec/val.txt
     transforms:
     - DecodeImage:
         img_mode: BGR
@@ -137,7 +157,11 @@ Eval:
     - MultiLabelEncode:
         gtc_encode: NRTRLabelEncode
     - RecResizeImg:
-        image_shape: [3, 48, 320]
+        # ### VALIDATION RESIZE ###
+        # We must use the largest size (640) for validation
+        # so your long document lines don't get crushed.
+        # Short text might look padded, but that's acceptable for Eval.
+        image_shape: [3, 48, 640]
     - KeepKeys:
         keep_keys:
         - image
@@ -148,5 +172,5 @@ Eval:
   loader:
     shuffle: true
     drop_last: false
-    batch_size_per_card: 32 #128  #sara decreased
-    num_workers: 1 #4 #sara decreased 
+    batch_size_per_card: 32 # Reduced for 8GB GPU
+    num_workers: 2

@@ -164,3 +164,4 @@ cython_debug/
 #SKS added
 my.cmd
 train_data/*
+*.backup

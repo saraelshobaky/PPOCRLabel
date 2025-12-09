@@ -84,13 +84,13 @@ i.e. $ python gen_ocr_train_val_test.py --trainValTestRatio  6:2:2 --datasetRoot
 $ cd [PARENT_DIR]/PPOCRLabel/
 $ conda activate paddle-label-train-env
 
-$ python gen_ocr_train_val_test.py --trainValTestRatio 7:3:0 --datasetRootPath ~/Desktop/Paddle_training/a/  --convertArabicDigits true   --flipRTL true
+python gen_ocr_train_val_test.py --trainValTestRatio 7:3:0 --datasetRootPath train_data/ --recLabelFileName Label.txt  --convertArabicDigits true   --flipRTL false
 
 ==> output are in [PARENT_DIR]/train_data/rec/
 
 ==> --convertArabicDigits true  # Ensures to convert all english digits to Arabic Hindi digits (Default=true)
 
-==> --flipRTL true  # Ensures to flip line characters (Except numbers, digits, decimals) to be read from left to right (special case of paddle ocr image scanning from left to write. This case not available in tesseract) (Default=true)
+==> --flipRTL true  # Ensures not to flip line characters (Except numbers, digits, decimals) to be read from left to right (special case of paddle ocr image scanning from left to write. This case not available in tesseract) (Default=false). Finally found that it has to be false and kept as is not reversed [TOCHECK]
 
 ```
 

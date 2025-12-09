@@ -3410,7 +3410,7 @@ class MainWindow(QMainWindow):
                     use_textline_orientation=False,
                     use_doc_unwarping=False,
                     text_detection_model_name="PP-OCRv5_mobile_det",
-                    text_recognition_model_name="PP-OCRv5_mobile_rec",
+                    text_recognition_model_name="arabic_PP-OCRv5_mobile_rec", #"PP-OCRv5_mobile_rec",
                     lang=choose_lang,
                     device=self.gpu,
                 )

@@ -12,12 +12,16 @@ from  libs.mytools import convert_to_eastern_arabic, generate_rtl_label  #SKS Ad
 import random
 import re
 import numpy as np
+import logging
+
+# Configure logging (usually done at the start of your script)
+logging.basicConfig(level=logging.ERROR)
 
 
 # --- CONFIG ---
 CAPMAS_TRAINING_GT_DIR= '/home/sara/data/capmas/vsworkspace/capmas_training_GT/ocr_training_data_5K_0padd_50size'
 PARENT_DIR = '/home/sara/data/capmas/vsworkspace/capmas_projects/PPOCRLabel/train_data' #"train_data/tatweel_data"
-OUTPUT_DIR = f'{PARENT_DIR}/smart_data'
+IMG_DIR_NAME = 'crop_img'
 FONT_PATH = ["/usr/share/fonts/truetype/msttcorefonts/arial.ttf",
              "/usr/share/fonts/Amiri/Amiri-Regular.ttf"]
 NUM_IMAGES = 20
@@ -29,6 +33,8 @@ IMAGE_HEIGHT = 48
 VALID_PREDECESSORS = set("بتثجحخسشصضطظعغفقكمنهيئ")
 
 SPACER = " "
+MAX_LINE_LENGTH=100
+
 
 
 
@@ -55,10 +61,10 @@ def create_image(text_raw, filename, font):
     x_pos = (width - text_w) // 2
     draw.text((x_pos, 0), bidi_text, font=font, fill=(0, 0, 0))
     # print(text_raw)
-    image.save(f"{OUTPUT_DIR}/{filename}")
+    image.save(f"{PARENT_DIR}/{IMG_DIR_NAME}/{filename}")
     
     # Return label
-    return f"{OUTPUT_DIR}/{filename}\t{text_raw}"
+    return f"{IMG_DIR_NAME}/{filename}\t{text_raw}"
 
 
 
@@ -113,17 +119,22 @@ def read_ground_truth(folder_path):
 
 
 
-def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=6):
+def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=6, max_line_length=MAX_LINE_LENGTH):
     """
     Inserts AT MOST ONE tatweel per word, heavily favoring the last quarter.
-    """
+    """   
+    if len(text.strip())==0:
+        return None
+    # if text is only 2 characters, do not stretch, or change return it as is
+    elif len(text.strip()) < 3:
+        return text
     
     tokens = re.split(r'(\s+)', text)
-    processed_tokens = []
+    processed_tokens = []  
     
     for token in tokens:
         # Skip empty or whitespace tokens
-        if not token.strip() or len(token.strip())<3:
+        if not token.strip():
             processed_tokens.append(token)
             continue
         
@@ -161,9 +172,17 @@ def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=6):
                         
                         # IMPORTANT: Lock this word so no more tatweels are added
                         word_has_tatweel = True
-
-        processed_tokens.append("".join(new_word))
+        
+        # adds up the lengths of each individual string including the current one
+        total_chars = sum(len(s) for s in processed_tokens) + len(new_word)
+        #If still within range, add current word to the list
+        if total_chars < max_line_length:
+            processed_tokens.append("".join(new_word))
+        #otherwise, just send this part of the line
+        else:
+            return "".join(processed_tokens)
     
+    #If list of words finished, just send it
     return "".join(processed_tokens)
 
 
@@ -174,8 +193,8 @@ def tatweel_ground_truth_text(text_contents, number_images):
 
     for i,line in enumerate(text_contents[0:number_images]):        
         # 30% chance per letter to get a tatweel, max 2 tatweels long
-        aug_line = insert_one_tatweel_per_word(line, base_probability=0.3, max_stretch=10)
-        augmented_contents.append(aug_line)
+        aug_line = insert_one_tatweel_per_word(line, base_probability=0.3, max_stretch=10, max_line_length=MAX_LINE_LENGTH)
+
          #write results into file
         filename = f"gt_tatweel_{font.getname()[0]}_{i}.png"
         line = create_image(aug_line, filename, font)
@@ -184,13 +203,12 @@ def tatweel_ground_truth_text(text_contents, number_images):
 
     return augmented_contents
 
-    ###############
 
 
 
 if __name__ == "__main__":
-    if not os.path.exists(f"{OUTPUT_DIR}"):
-        os.makedirs(OUTPUT_DIR)
+    if not os.path.exists(f"{PARENT_DIR}/{IMG_DIR_NAME}"):
+        os.makedirs(f'{PARENT_DIR}/{IMG_DIR_NAME}')
     
     labels = []
 
@@ -218,16 +236,16 @@ if __name__ == "__main__":
 
             print(f"Generating ground truth labels images (font: {font.getname()[0]})...")
             gt_labels = read_ground_truth(CAPMAS_TRAINING_GT_DIR)
-            tatweel_gtlabels = tatweel_ground_truth_text(gt_labels, NUM_IMAGES)
+            tatweel_gtlabels = tatweel_ground_truth_text(gt_labels, NUM_IMAGES*2)
             labels.extend(tatweel_gtlabels)
 
-
         except BaseException as e:
-            print(e)        
+            # This automatically logs the error AND the line number/traceback
+            logging.exception("An error occurred during processing")    
  
     # Save Label File
-    with open(f"{PARENT_DIR}/smart_labels.txt", "w", encoding="utf-8") as f:
+    with open(f"{PARENT_DIR}/Label.txt", "w", encoding="utf-8") as f:
         for l in labels:
             f.write(l + "\n")
             
-    print(f"Done! Check '{PARENT_DIR}/smart_labels.txt'")
+    print(f"Done! Check '{PARENT_DIR}/Label.txt'")

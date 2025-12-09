@@ -44,6 +44,7 @@ def splitTrainVal(
 
             ################################START: Arabic Case Adjustments ############################
             #SKS  added to flip the line text to be from left to write (Will preserve any Enlish character, puntuation or english digits)
+            #After checks seems not the case of paddleOCR, have to check !!!! (Currently set default to false, to skip)
             image_label = generate_rtl_label(image_label) if flipRTL == True else image_label
             #SKS  added to convert English digits to Arabic (Hindi) digits  (Note: should be done after the rtl flip not before)
             image_label = convert_to_eastern_arabic(image_label) if convertArabicDigits == True else image_label
@@ -109,21 +110,23 @@ def genDetRecTrainVal(args):
     recValTxt = open(os.path.join(args.recRootPath, "val.txt"), "a", encoding="UTF-8")
     recTestTxt = open(os.path.join(args.recRootPath, "test.txt"), "a", encoding="UTF-8")
 
-    splitTrainVal(
-        args.datasetRootPath,
-        detAbsTrainRootPath,
-        detAbsValRootPath,
-        detAbsTestRootPath,
-        detTrainTxt,
-        detValTxt,
-        detTestTxt,
-        "det",
-        args.flipRTL, #SKS Added
-        args.convertArabicDigits, #SKS Added
-    )
+    # splitTrainVal(
+    #     args.datasetRootPath,
+    #     detAbsTrainRootPath,
+    #     detAbsValRootPath,
+    #     detAbsTestRootPath,
+    #     detTrainTxt,
+    #     detValTxt,
+    #     detTestTxt,
+    #     "det",
+    #     args.flipRTL, #SKS Added
+    #     args.convertArabicDigits, #SKS Added
+    # )
 
     for root, dirs, files in os.walk(args.datasetRootPath):
+        print(args.datasetRootPath)
         for dir in dirs:
+            print(dir)
             if dir == "crop_img":
                 splitTrainVal(
                     root,
@@ -210,8 +213,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--flipRTL",
         type=str2bool,
-        default=True,
-        help="If set to true will reverse line characters order to be read from left to right, except digits and latin words as Paddle OCR training scan images from left to right only",
+        default=False,
+        help="If set to true will reverse line characters order to be read from left to right, except digits and latin words in case Paddle OCR training scan images from left to right only [Seems not the case, have to check!!!!]",
     )
 
     #SKS Added
