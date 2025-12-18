@@ -165,3 +165,9 @@ cython_debug/
 my.cmd
 train_data/*
 *.backup
+output/*
+tmp.py
+*.log
+logs/*
+*.ipynb
+*.code-workspace

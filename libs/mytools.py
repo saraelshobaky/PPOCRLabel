@@ -31,7 +31,7 @@ def generate_rtl_label(text: str) -> str:
     
     # 2. Find all LTR (English/Number) blocks.
     # This regex matches any sequence of letters, numbers, and [.,-]
-    ltr_pattern = re.compile(r'[a-zA-Z0-9\.,-]+')
+    ltr_pattern = re.compile(r'[a-zA-Z0-9٠١٢٣٤٥٦٧٨٩\.,-]+')
     
     # 3. This function takes a regex match (e.g., "321-traP")
     #    and returns its reverse (e.g., "Part-123")

@@ -3,7 +3,7 @@ import os
 import shutil
 import random
 import argparse
-from libs.mytools import convert_to_eastern_arabic, generate_rtl_label  #SKS Added
+from libs.mytools import generate_rtl_label  #SKS Added
 
 
 # Delete the divided train, val, and test folders and create a new empty folder
@@ -28,7 +28,7 @@ def splitTrainVal(
     test_txt,
     flag,
     flipRTL, #SKS Added for arabic adjustments
-    convertArabicDigits, #SKS Added for arabic adjustments
+    # convertArabicDigits, #SKS Added for arabic adjustments
 ):
     data_abs_path = os.path.abspath(root)
     label_file_name = args.detLabelFileName if flag == "det" else args.recLabelFileName
@@ -46,8 +46,8 @@ def splitTrainVal(
             #SKS  added to flip the line text to be from left to write (Will preserve any Enlish character, puntuation or english digits)
             #After checks seems not the case of paddleOCR, have to check !!!! (Currently set default to false, to skip)
             image_label = generate_rtl_label(image_label) if flipRTL == True else image_label
-            #SKS  added to convert English digits to Arabic (Hindi) digits  (Note: should be done after the rtl flip not before)
-            image_label = convert_to_eastern_arabic(image_label) if convertArabicDigits == True else image_label
+            # #SKS  added to convert English digits to Arabic (Hindi) digits  (Note: should be done after the rtl flip not before)
+            # image_label = convert_to_eastern_arabic(image_label) if convertArabicDigits == True else image_label
             ################################End: Arabic Case Adjustments############################
 
             image_name = os.path.basename(image_relative_path)
@@ -138,7 +138,7 @@ def genDetRecTrainVal(args):
                     recTestTxt,
                     "rec",
                     args.flipRTL, #SKS Added
-                    args.convertArabicDigits, #SKS Added
+                    # args.convertArabicDigits, #SKS Added
                 )
             else:
                 continue
@@ -217,12 +217,12 @@ if __name__ == "__main__":
         help="If set to true will reverse line characters order to be read from left to right, except digits and latin words in case Paddle OCR training scan images from left to right only [Seems not the case, have to check!!!!]",
     )
 
-    #SKS Added
-    parser.add_argument(
-        "--convertArabicDigits",
-        type=str2bool,
-        default=True,
-        help="If set to true will convert all English digits to Arabic digits (٠-٩)",
-    )
+    # #SKS Added
+    # parser.add_argument(
+    #     "--convertArabicDigits",
+    #     type=str2bool,
+    #     default=True,
+    #     help="If set to true will convert all English digits to Arabic digits (٠-٩)",
+    # )
     args = parser.parse_args()
     genDetRecTrainVal(args)

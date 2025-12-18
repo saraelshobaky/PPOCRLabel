@@ -203,6 +203,8 @@ class MainWindow(QMainWindow):
             "device": self.gpu,
             "lang": self.lang,
             "enable_mkldnn": False,
+            "use_space_char":True,#Tried to solve the issue of concatenated words           
+            
         }
 
         if det_model_dir is not None:
@@ -3413,6 +3415,8 @@ class MainWindow(QMainWindow):
                     text_recognition_model_name="arabic_PP-OCRv5_mobile_rec", #"PP-OCRv5_mobile_rec",
                     lang=choose_lang,
                     device=self.gpu,
+                    # text_rec_input_shape="3,48,1280",  #c,h,w
+                    #rec_image_shape="3,48,1280",  #c,h,w
                 )
             if choose_lang in ["ch", "en"]:
                 if hasattr(self, "table_ocr"):

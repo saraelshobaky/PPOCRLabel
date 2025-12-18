@@ -1,10 +1,10 @@
 Global:
   model_name: arabic_PP-OCRv5_mobile_rec
-  debug: false
+  debug: true
   use_gpu: true
   epoch_num: 75 # Fine-tuning usually needs fewer epochs, but 75 is safe.
   log_smooth_window: 20
-  print_batch_step: 10
+  print_batch_step: 20 #changed from 10 (Optional). Since the batch size is smaller, the total number of "steps" per epoch will double. If this is set to 10, your logs will scroll very fast. You might want to double this value (e.g., to 20) to keep your logs cleaner.
   save_model_dir: ./output/arabic_rec_ppocr_v5
   save_epoch_step: 10
   eval_batch_step: [0, 500] # ### Check eval more frequently (was 1000)
@@ -22,15 +22,16 @@ Global:
   # ### CRITICAL: Increased to support "Large document lines"
   # Was 25. If a line has 80 chars, 25 cuts it off. 
   # 100 is usually enough for a full line of A4 text.
-  max_text_length: &max_text_length 100 
+  max_text_length: &max_text_length 25 
   
   infer_mode: false
   use_space_char: true
   distributed: false # ### Set false for single GPU training
   save_res_path: ./output/rec/predicts_arabic_ppocrv5.txt
   
-  # ### Keep Base Shape 320. 
-  # Do not change this to 640. The Sampler handles the resizing.
+  # d2s_train_image_shape: [3, 48, 320]
+  # Change 320 to 640 or 800 to initialize the model for wider text
+  # NEW (Matches your largest scale)
   d2s_train_image_shape: [3, 48, 320]
 
   # ### MEMORY OPTIMIZATION (AMP) ###
@@ -48,7 +49,7 @@ Optimizer:
     # ### LOWERED LR FOR FINE-TUNING ###
     # 0.0005 is too high for pre-trained weights. 
     # 0.0001 is safer to prevent destroying learned features.
-    learning_rate: 0.0001 
+    learning_rate: 0.00025 #0.0001 
     warmup_epoch: 2 # Reduced warmup since we are fine-tuning
   regularizer:
     name: L2
@@ -129,12 +130,24 @@ Train:
     # 320: Perfect for "Small table cells" (no stretching)
     # 480: Medium text
     # 640: Perfect for "Large document lines" (no squashing)
-    scales: [[320, 48], [480, 48], [640, 48]]
+
+    # scales: [[320, 48], [480, 48], [640, 48]]
+
+    # ### THE HYBRID SOLUTION ###
+    # [320, 48]: For single words / short IDs (Fastest)
+    # [640, 48]: For medium phrases
+    # [960, 48]: For longer sentences
+    # [1280, 48]: For your max length 100-char lines
+    # scales: [[320, 48], [640, 48], [960, 48], [1280, 48]]
+
+
+    scales: [[320, 32], [320, 48], [320, 64]]
     
     # ### BATCH SIZE FOR 8GB GPU ###
     # 128 is too big for 8GB VRAM with AMP enabled. 
     # 32 or 48 is safe. Start with 32.
-    first_bs: &bs 32 
+
+    first_bs: &bs 64 #32 
     fix_bs: false
     divided_factor: [8, 16] 
     is_training: True
@@ -142,7 +155,7 @@ Train:
     shuffle: true
     batch_size_per_card: *bs
     drop_last: true
-    num_workers: 4 # Reduced from 8 to save CPU RAM
+    num_workers: 8
 
 Eval:
   dataset:
@@ -161,7 +174,12 @@ Eval:
         # We must use the largest size (640) for validation
         # so your long document lines don't get crushed.
         # Short text might look padded, but that's acceptable for Eval.
-        image_shape: [3, 48, 640]
+        # image_shape: [3, 48, 640]  #480 or 640???
+
+        # Increase this to match your largest training scale
+        # WAS: [3, 48, 960]
+        # CHANGE TO: Match the largest scale in Train -> sampler
+        image_shape: [3, 48, 320]
     - KeepKeys:
         keep_keys:
         - image
@@ -172,5 +190,5 @@ Eval:
   loader:
     shuffle: true
     drop_last: false
-    batch_size_per_card: 32 # Reduced for 8GB GPU
-    num_workers: 2
+    batch_size_per_card: 64 # Reduced for 8GB GPU
+    num_workers: 4

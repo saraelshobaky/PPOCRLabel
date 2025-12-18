@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../output"
+		},
+		{
+			"path": "../train_data"
+		},
+		{
+			"path": "../logs"
+		}
+	],
+	"settings": {}
+}

@@ -4,27 +4,34 @@
 # sudo apt install ttf-mscorefonts-installer
 
 import os
+import shutil
 import random
 from PIL import Image, ImageDraw, ImageFont
-import arabic_reshaper
-from bidi.algorithm import get_display
-from  libs.mytools import convert_to_eastern_arabic, generate_rtl_label  #SKS Added
+# import arabic_reshaper
+# from bidi.algorithm import get_display
+from  libs.mytools import convert_to_eastern_arabic
 import random
 import re
 import numpy as np
 import logging
+import validate_dataset
 
 # Configure logging (usually done at the start of your script)
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 # --- CONFIG ---
 CAPMAS_TRAINING_GT_DIR= '/home/sara/data/capmas/vsworkspace/capmas_training_GT/ocr_training_data_5K_0padd_50size'
 PARENT_DIR = '/home/sara/data/capmas/vsworkspace/capmas_projects/PPOCRLabel/train_data' #"train_data/tatweel_data"
 IMG_DIR_NAME = 'crop_img'
-FONT_PATH = ["/usr/share/fonts/truetype/msttcorefonts/arial.ttf",
-             "/usr/share/fonts/Amiri/Amiri-Regular.ttf"]
-NUM_IMAGES = 20
+FONT_PATH = [
+            "/usr/share/fonts/truetype/msttcorefonts/arial.ttf",
+            "/usr/share/fonts/Amiri/Amiri-Regular.ttf",
+            "/usr/share/fonts/traditional-arabic-morph-regular/traditional-arabic-morph-regular.ttf",
+
+            
+            ]
+NUM_IMAGES = 80 #80
 IMAGE_HEIGHT = 48
 
 #Define letters that CAN accept a Tatweel after them
@@ -33,34 +40,49 @@ IMAGE_HEIGHT = 48
 VALID_PREDECESSORS = set("بتثجحخسشصضطظعغفقكمنهيئ")
 
 SPACER = " "
-MAX_LINE_LENGTH=100
+MAX_LINE_LENGTH=25 #100  #max number of character per line after adding tatweels
+MAX_TATWEEL_STRETCH=0 #6 # Maximum random number of tatweel character added per word
 
 
 
 
 
-def create_image(text_raw, filename, font):
+def generate_image_and_label(text_raw, filename, font):
+    #Convert English numbers to Arabi (Hindi)
+    text_raw = convert_to_eastern_arabic(text_raw)
+
     # # 1. Reshape Arabic (Fixes ligatures and letter forms)
     # reshaped_text = arabic_reshaper.reshape(text_raw)
-    # # 2. Reorder for RTL (Right-to-Left) display
+    # # # 2. Reorder for RTL (Right-to-Left) display
     # bidi_text = get_display(reshaped_text)
+
     bidi_text = text_raw
-    
+
     # Calculate text size
     dummy_img = Image.new('RGB', (1, 1))
     draw = ImageDraw.Draw(dummy_img)
     bbox = draw.textbbox((0, 0), bidi_text, font=font)
-    text_w = bbox[2] - bbox[0]
+    text_w = bbox[2] - bbox[0] # <--- Calculate width
+    text_h = bbox[3] - bbox[1] # <--- Calculate height
+
     
     # Create image with random extra padding for "Space" training
-    width = text_w + random.randint(50, 150)
+    width = text_w + random.randint(4, 30) #random.randint(50, 150)
     image = Image.new('RGB', (width, IMAGE_HEIGHT), (255, 255, 255))
     draw = ImageDraw.Draw(image)
 
+    # Calculate positions
     # Center text vertically, random horizontal position
     x_pos = (width - text_w) // 2
-    draw.text((x_pos, 0), bidi_text, font=font, fill=(0, 0, 0))
-    # print(text_raw)
+
+    # Calculate the vertical center
+    # Formula: (Container Height - Text Height) / 2
+    y_pos = (IMAGE_HEIGHT - text_h) // 2
+
+    # Draw the text with offset correction
+    # We subtract bbox[1] because the bounding box top might not be 0 relative to the baseline
+    draw.text((x_pos, y_pos - bbox[1]), bidi_text, font=font, fill=(0, 0, 0))
+
     image.save(f"{PARENT_DIR}/{IMG_DIR_NAME}/{filename}")
     
     # Return label
@@ -77,12 +99,10 @@ def generate_year_ranges_images(font, num_images, start_year, end_year):
         # Randomly picks either a space or nothing
         separator = random.choice([SPACER, ''])
         #Concatenate the text of year ranges
-        full_text = f"{year_from}{separator}-{separator}{year_to}"
-        #Converts english digits to arabic
-        full_text = convert_to_eastern_arabic(full_text)          
+        full_text = f"{year_from}{separator}-{separator}{year_to}"        
         #write results into file
         filename = f"year_range_{font.getname()[0]}_{i}.png"
-        line = create_image(full_text, filename, font)
+        line = generate_image_and_label(full_text, filename, font)
         if line: 
             labels.append(line)
     return labels
@@ -95,11 +115,11 @@ def generate_decimals_arabic_images(font, num_images, start_num, end_num, max_pr
     numbers = np.random.uniform(start_num, end_num, num_images)   
     for i, num in enumerate(numbers[0:num_images]):   
         precision = random.randint(0, max_precision)        
-        text = convert_to_eastern_arabic(str(round(num, precision)))
+        text = str(round(num, precision))
         separator = random.choice([',', 'ر'])
         text = text.replace('.', separator)
         filename = f"decimals_{start_num}_{end_num}_{font.getname()[0]}_{i}.png"
-        line = create_image(text, filename, font)
+        line = generate_image_and_label(text, filename, font)
         if line: 
             labels.append(line)
     return labels
@@ -119,10 +139,11 @@ def read_ground_truth(folder_path):
 
 
 
-def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=6, max_line_length=MAX_LINE_LENGTH):
+def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=MAX_TATWEEL_STRETCH, max_line_length=MAX_LINE_LENGTH):
     """
     Inserts AT MOST ONE tatweel per word, heavily favoring the last quarter.
     """   
+    
     if len(text.strip())==0:
         return None
     # if text is only 2 characters, do not stretch, or change return it as is
@@ -142,7 +163,8 @@ def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=6, max_
         word_len = len(token)
         
         # Track if we have already stretched this specific word
-        word_has_tatweel = False
+        word_has_tatweel = True  if "ـ" in token else False
+        
         
         for i, char in enumerate(token):
             new_word.append(char)
@@ -151,7 +173,7 @@ def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=6, max_
             # 2. Check if we haven't already stretched this word
             # 3. Check bounds (not the last letter)
             # 4. Check if in the last half of the word
-            if (char in VALID_PREDECESSORS) and (not word_has_tatweel) and (i + 1 < word_len)  and (i + 1 > word_len/2):
+            if max_stretch>0 and (char in VALID_PREDECESSORS) and (not word_has_tatweel) and (i + 1 < word_len)  and (i + 1 > word_len/2):
                 
                 next_char = token[i+1]
                 
@@ -174,8 +196,8 @@ def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=6, max_
                         word_has_tatweel = True
         
         # adds up the lengths of each individual string including the current one
-        total_chars = sum(len(s) for s in processed_tokens) + len(new_word)
-        #If still within range, add current word to the list
+        total_chars = sum(len(s) for s in processed_tokens) +  sum(len(s) for s in new_word)
+        #If still within range, add current word to the list       
         if total_chars < max_line_length:
             processed_tokens.append("".join(new_word))
         #otherwise, just send this part of the line
@@ -191,24 +213,34 @@ def tatweel_ground_truth_text(text_contents, number_images):
     # Create a new list with augmented text
     augmented_contents = []
 
-    for i,line in enumerate(text_contents[0:number_images]):        
+    for i,line in enumerate(text_contents[0:number_images]):   
+        
         # 30% chance per letter to get a tatweel, max 2 tatweels long
-        aug_line = insert_one_tatweel_per_word(line, base_probability=0.3, max_stretch=10, max_line_length=MAX_LINE_LENGTH)
+        aug_line = insert_one_tatweel_per_word(line, base_probability=0.3, max_stretch=MAX_TATWEEL_STRETCH, max_line_length=MAX_LINE_LENGTH)
 
-         #write results into file
-        filename = f"gt_tatweel_{font.getname()[0]}_{i}.png"
-        line = create_image(aug_line, filename, font)
-        if line: 
-            augmented_contents.append(line)
+        if MAX_TATWEEL_STRETCH<=0:                
+            aug_line = aug_line.replace('ـ','') 
+
+        if len(aug_line.strip())>0:
+            #write results into file
+            filename = f"gt_tatweel_{font.getname()[0]}_{i}.png"
+
+            line = generate_image_and_label(aug_line, filename, font)
+            if line: 
+                augmented_contents.append(line)
 
     return augmented_contents
 
 
 
-
 if __name__ == "__main__":
-    if not os.path.exists(f"{PARENT_DIR}/{IMG_DIR_NAME}"):
-        os.makedirs(f'{PARENT_DIR}/{IMG_DIR_NAME}')
+
+    # Check if it exists to avoid FileNotFoundError
+    if os.path.exists(f"{PARENT_DIR}"):
+        shutil.rmtree(f"{PARENT_DIR}")
+        print(f"Deleted {f"{PARENT_DIR}"} and all its contents.")
+    
+    os.makedirs(f'{PARENT_DIR}/{IMG_DIR_NAME}')
     
     labels = []
 
@@ -216,27 +248,33 @@ if __name__ == "__main__":
     for font_path in FONT_PATH:
         try:
             font = ImageFont.truetype(font_path, 32)
-
-            print(f"Generating {NUM_IMAGES} year ranges images (font: {font.getname()[0]})...")
+            logging.info(f"Generating Smart Trainning Data: (MAX_LINE_LENGTH={MAX_LINE_LENGTH}, MAX_TATWEEL_STRETCH={MAX_TATWEEL_STRETCH}, IMAGE_HEIGHT={IMAGE_HEIGHT})")
+            
+            logging.info(f"Generating {NUM_IMAGES} year ranges images (font: {font.getname()[0]})...")
             years_labels = generate_year_ranges_images(font, NUM_IMAGES, 1900, 2000)
+            logging.info(f' >> {len(years_labels)} lines generated successfully ...')
             labels.extend(years_labels)
 
-            print(f"Generating big decimal arabic numbers (font: {font.getname()[0]})...")
+            logging.info(f"Generating big decimal arabic numbers (font: {font.getname()[0]})...")
             decimal_arabic_labels = generate_decimals_arabic_images(font, NUM_IMAGES, 1000, 10000,2)
+            logging.info(f' >> {len(decimal_arabic_labels)} lines generated successfully ...')
             labels.extend(decimal_arabic_labels)
 
-            print(f"Generating small decimal arabic numbers (font: {font.getname()[0]})...")
+            logging.info(f"Generating small decimal arabic numbers (font: {font.getname()[0]})...")
             decimal_arabic_labels = generate_decimals_arabic_images(font, NUM_IMAGES, 100, 1000, 2)
+            logging.info(f' >> {len(decimal_arabic_labels)} lines generated successfully ...')
             labels.extend(decimal_arabic_labels)
 
-            print(f"Generating tiny decimal arabic numbers (font: {font.getname()[0]})...")
+            logging.info(f"Generating tiny decimal arabic numbers (font: {font.getname()[0]})...")
             decimal_arabic_labels = generate_decimals_arabic_images(font, NUM_IMAGES, 0, 100, 1)
+            logging.info(f' >> {len(decimal_arabic_labels)} lines generated successfully ...')
             labels.extend(decimal_arabic_labels)
 
 
-            print(f"Generating ground truth labels images (font: {font.getname()[0]})...")
+            logging.info(f"Generating ground truth labels images (font: {font.getname()[0]})...")
             gt_labels = read_ground_truth(CAPMAS_TRAINING_GT_DIR)
-            tatweel_gtlabels = tatweel_ground_truth_text(gt_labels, NUM_IMAGES*2)
+            tatweel_gtlabels = tatweel_ground_truth_text(gt_labels, NUM_IMAGES*50)
+            logging.info(f' >> {len(tatweel_gtlabels)} lines generated successfully ...')
             labels.extend(tatweel_gtlabels)
 
         except BaseException as e:
@@ -247,5 +285,15 @@ if __name__ == "__main__":
     with open(f"{PARENT_DIR}/Label.txt", "w", encoding="utf-8") as f:
         for l in labels:
             f.write(l + "\n")
-            
-    print(f"Done! Check '{PARENT_DIR}/Label.txt'")
+
+    logging.info(f"Done! Check '{PARENT_DIR}/Label.txt'")
+
+
+    #VALIDATING TRAINING Data
+    logging.info(f"########################################################")
+    logging.info(f"Start validating training data ...")
+    valid_chars = validate_dataset.load_dictionary(validate_dataset.DICT_FILE)
+    if valid_chars:
+        validate_dataset.validate_dataset(f"{PARENT_DIR}/Label.txt", f"{PARENT_DIR}/", valid_chars, MAX_LINE_LENGTH)
+
+    logging.info(f"Validation Done.")
