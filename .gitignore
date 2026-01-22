@@ -171,3 +171,6 @@ tmp.py
 logs/*
 *.ipynb
 *.code-workspace
+*.tif
+fonts/*
+tmp/*

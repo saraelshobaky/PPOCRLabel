@@ -11,10 +11,11 @@ from PIL import Image, ImageDraw, ImageFont
 # from bidi.algorithm import get_display
 from  libs.mytools import convert_to_eastern_arabic
 import random
-import re
 import numpy as np
 import logging
 import validate_dataset
+import textwrap
+
 
 # Configure logging (usually done at the start of your script)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -27,12 +28,17 @@ IMG_DIR_NAME = 'crop_img'
 FONT_PATH = [
             "/usr/share/fonts/truetype/msttcorefonts/arial.ttf",
             "/usr/share/fonts/Amiri/Amiri-Regular.ttf",
-            "/usr/share/fonts/traditional-arabic-morph-regular/traditional-arabic-morph-regular.ttf",
-
-            
+            # "/usr/share/fonts/traditional-arabic-morph-regular/traditional-arabic-morph-regular.ttf",
+            # "/home/sara/data/capmas/vsworkspace/capmas_projects/PPOCRLabel/fonts/traditional-arabic.ttf",
+            "/home/sara/data/capmas/vsworkspace/capmas_projects/PPOCRLabel/fonts/Bahij_Lotus/Bahij_Lotus-Light.ttf",
+            "/home/sara/data/capmas/vsworkspace/capmas_projects/PPOCRLabel/fonts/Bahij_Yakout/Bahij_Yakout-Regular.ttf",  #Perfect for 1991
+            #"/home/sara/data/capmas/vsworkspace/capmas_projects/PPOCRLabel/fonts/29LT-Azer-Bold.otf",  #No
+            #"/home/sara/data/capmas/vsworkspace/capmas_projects/PPOCRLabel/fonts/Alyamamawght.ttf",  #No
+            # "/home/sara/Downloads/Parastoo-Bold.ttf", #nice but not perfect specially lam Alef
             ]
-NUM_IMAGES = 80 #80
 IMAGE_HEIGHT = 48
+NUM_IMAGES = 100
+AUGMENTATION_FACTOR=50
 
 #Define letters that CAN accept a Tatweel after them
 # We exclude: ا د ذ ر ز و ؤ ء ة and ends of words
@@ -56,6 +62,7 @@ def generate_image_and_label(text_raw, filename, font):
     # # # 2. Reorder for RTL (Right-to-Left) display
     # bidi_text = get_display(reshaped_text)
 
+    # bidi_text = 'هذا يعكس الاهمية الحيوية لشبه جزيرة سيناء'#text_raw
     bidi_text = text_raw
 
     # Calculate text size
@@ -139,97 +146,121 @@ def read_ground_truth(folder_path):
 
 
 
-def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=MAX_TATWEEL_STRETCH, max_line_length=MAX_LINE_LENGTH):
-    """
-    Inserts AT MOST ONE tatweel per word, heavily favoring the last quarter.
-    """   
+# def insert_one_tatweel_per_word(text, base_probability=0.05, max_stretch=MAX_TATWEEL_STRETCH, max_line_length=MAX_LINE_LENGTH):
+#     """
+#     Inserts AT MOST ONE tatweel per word, heavily favoring the last quarter.
+#     """   
     
-    if len(text.strip())==0:
-        return None
-    # if text is only 2 characters, do not stretch, or change return it as is
-    elif len(text.strip()) < 3:
-        return text
+#     if len(text.strip())==0:
+#         return None
+#     # if text is only 2 characters, do not stretch, or change return it as is
+#     elif len(text.strip()) < 3:
+#         return text
     
-    tokens = re.split(r'(\s+)', text)
-    processed_tokens = []  
+#     tokens = re.split(r'(\s+)', text)
+#     processed_tokens = []  
     
-    for token in tokens:
-        # Skip empty or whitespace tokens
-        if not token.strip():
-            processed_tokens.append(token)
-            continue
+#     for token in tokens:
+#         # Skip empty or whitespace tokens
+#         if not token.strip():
+#             processed_tokens.append(token)
+#             continue
         
-        new_word = []
-        word_len = len(token)
+#         new_word = []
+#         word_len = len(token)
         
-        # Track if we have already stretched this specific word
-        word_has_tatweel = True  if "ـ" in token else False
+#         # Track if we have already stretched this specific word
+#         word_has_tatweel = True  if "ـ" in token else False
         
         
-        for i, char in enumerate(token):
-            new_word.append(char)
+#         for i, char in enumerate(token):
+#             new_word.append(char)
             
-            # 1. Check if char allows stretching
-            # 2. Check if we haven't already stretched this word
-            # 3. Check bounds (not the last letter)
-            # 4. Check if in the last half of the word
-            if max_stretch>0 and (char in VALID_PREDECESSORS) and (not word_has_tatweel) and (i + 1 < word_len)  and (i + 1 > word_len/2):
+#             # 1. Check if char allows stretching
+#             # 2. Check if we haven't already stretched this word
+#             # 3. Check bounds (not the last letter)
+#             # 4. Check if in the last half of the word
+#             if max_stretch>0 and (char in VALID_PREDECESSORS) and (not word_has_tatweel) and (i + 1 < word_len)  and (i + 1 > word_len/2):
                 
-                next_char = token[i+1]
+#                 next_char = token[i+1]
                 
-                # Ensure next char is valid (no stretching before punctuation)
-                if next_char.isalnum(): 
+#                 # Ensure next char is valid (no stretching before punctuation)
+#                 if next_char.isalnum(): 
                     
-                    # --- CUBIC WEIGHTING LOGIC ---
-                    progress = i / max(1, word_len - 1)
-                    cubic_progress = progress ** 3 
+#                     # --- CUBIC WEIGHTING LOGIC ---
+#                     progress = i / max(1, word_len - 1)
+#                     cubic_progress = progress ** 3 
                     
-                    # Calculate dynamic probability
-                    dynamic_prob = base_probability + ((1.0 - base_probability) * cubic_progress)
+#                     # Calculate dynamic probability
+#                     dynamic_prob = base_probability + ((1.0 - base_probability) * cubic_progress)
                     
-                    # Roll the dice
-                    if random.random() < dynamic_prob:
-                        stretch_length = random.randint(1, max_stretch)
-                        new_word.append("ـ" * stretch_length)
+#                     # Roll the dice
+#                     if random.random() < dynamic_prob:
+#                         stretch_length = random.randint(1, max_stretch)
+#                         new_word.append("ـ" * stretch_length)
                         
-                        # IMPORTANT: Lock this word so no more tatweels are added
-                        word_has_tatweel = True
+#                         # IMPORTANT: Lock this word so no more tatweels are added
+#                         word_has_tatweel = True
         
-        # adds up the lengths of each individual string including the current one
-        total_chars = sum(len(s) for s in processed_tokens) +  sum(len(s) for s in new_word)
-        #If still within range, add current word to the list       
-        if total_chars < max_line_length:
-            processed_tokens.append("".join(new_word))
-        #otherwise, just send this part of the line
-        else:
-            return "".join(processed_tokens)
+#         # adds up the lengths of each individual string including the current one
+#         total_chars = sum(len(s) for s in processed_tokens) +  sum(len(s) for s in new_word)
+#         #If still within range, add current word to the list       
+#         if total_chars < max_line_length:
+#             processed_tokens.append("".join(new_word))
+#         #otherwise, just send this part of the line
+#         else:
+#             return "".join(processed_tokens)
     
-    #If list of words finished, just send it
-    return "".join(processed_tokens)
+#     #If list of words finished, just send it
+#     return "".join(processed_tokens)
 
 
 
-def tatweel_ground_truth_text(text_contents, number_images):
+def split_labels(input_lines, max_length):
+    """
+    Splits a list of text lines into a longer list where each line 
+    is no longer than 'max_length'.
+    
+    Args:
+        input_lines (list): List of original strings.
+        max_length (int): Maximum allowed characters per line.
+        
+    Returns:
+        list: A flattened list of split strings.
+    """
+    output_lines = []
+    
+    for line in input_lines:
+        
+        # textwrap.wrap returns a list of strings for the single input line
+        # We extend our main output list with these new smaller lines
+        wrapped_lines = textwrap.wrap(line, width=max_length, break_long_words=True)
+        
+        # If the line was empty, textwrap might return empty list; 
+        # optional: preserve empty lines if needed
+        if not wrapped_lines and line == "":
+            output_lines.append("")
+        else:
+            output_lines.extend(wrapped_lines)
+            
+    return output_lines
+
+
+
+def generate_ground_truth_text(text_contents, number_images):
     # Create a new list with augmented text
-    augmented_contents = []
+    label_contents = []
 
     for i,line in enumerate(text_contents[0:number_images]):   
-        
-        # 30% chance per letter to get a tatweel, max 2 tatweels long
-        aug_line = insert_one_tatweel_per_word(line, base_probability=0.3, max_stretch=MAX_TATWEEL_STRETCH, max_line_length=MAX_LINE_LENGTH)
-
-        if MAX_TATWEEL_STRETCH<=0:                
-            aug_line = aug_line.replace('ـ','') 
-
-        if len(aug_line.strip())>0:
+        if len(line.strip())>0:
             #write results into file
-            filename = f"gt_tatweel_{font.getname()[0]}_{i}.png"
+            filename = f"gt_text_{font.getname()[0]}_{i}.png"
 
-            line = generate_image_and_label(aug_line, filename, font)
-            if line: 
-                augmented_contents.append(line)
+            label_line = generate_image_and_label(line, filename, font)
+            if label_line: 
+                label_contents.append(label_line)
 
-    return augmented_contents
+    return label_contents
 
 
 
@@ -273,9 +304,10 @@ if __name__ == "__main__":
 
             logging.info(f"Generating ground truth labels images (font: {font.getname()[0]})...")
             gt_labels = read_ground_truth(CAPMAS_TRAINING_GT_DIR)
-            tatweel_gtlabels = tatweel_ground_truth_text(gt_labels, NUM_IMAGES*50)
-            logging.info(f' >> {len(tatweel_gtlabels)} lines generated successfully ...')
-            labels.extend(tatweel_gtlabels)
+            splitted_gt_labels = split_labels(gt_labels, MAX_LINE_LENGTH)
+            text_gtlabels = generate_ground_truth_text(splitted_gt_labels, NUM_IMAGES*AUGMENTATION_FACTOR)
+            logging.info(f' >> {len(text_gtlabels)} lines generated successfully ...')
+            labels.extend(text_gtlabels)
 
         except BaseException as e:
             # This automatically logs the error AND the line number/traceback

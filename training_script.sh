@@ -55,7 +55,7 @@ done
 PAREND_DIR="/home/sara/data/capmas/vsworkspace/capmas_projects"
 PPOCRLABEL_DIR="$PAREND_DIR/PPOCRLabel"
 PADDLEOCR_DIR="$PAREND_DIR/PaddleOCR"
-OUTPUT_DIR="$PAREND_DIR/output"
+OUTPUT_DIR="$PAREND_DIR/output/20260122/"
 INFERENCE_DIR="$OUTPUT_DIR/inference"
 MODEL_DIR="$OUTPUT_DIR/models"
 DATASET_TRAIN_DATA="$PAREND_DIR/train_data"
