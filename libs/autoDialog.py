@@ -35,9 +35,8 @@ class Worker(QThread):
         self.model = model
         self.setStackSize(1024 * 1024)
 
-    def run(self):
-        # print('>>>>>>>>>>inside autodialog:run')
-        self.ocr.export_paddlex_config_to_yaml("exported_autodialog_paddleOCR.yaml")
+    def run(self):       
+        # self.ocr.export_paddlex_config_to_yaml("exported_autodialog_paddleOCR.yaml")
         try:
             findex = 0
             for img_path in self.img_list:
