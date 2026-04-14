@@ -22,7 +22,7 @@ import platform
 import subprocess
 import sys
 from functools import partial
-from libs.mytools import my_read_image
+from libs.mytools import my_read_image, generate_rtl_label
 
 import openpyxl
 import cv2
@@ -219,6 +219,7 @@ class MainWindow(QMainWindow):
             params["text_line_orientation_model_dir"] = cls_model_dir
 
         self.ocr = PaddleOCR(**params)
+        self.ocr.export_paddlex_config_to_yaml("exported_paddleOCR.yaml") 
         self.text_recognizer = TextRecognition(
             model_name=rec_model_name, #modified to load it from command line 
             model_dir=rec_model_dir,
@@ -229,6 +230,7 @@ class MainWindow(QMainWindow):
             model_dir=det_model_dir,
             device=self.gpu,
         )
+        # self.text_detector.export_paddlex_config_to_yaml("insider_text_detector.yaml") 
         self.table_ocr = PPStructureV3(
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
@@ -2960,6 +2962,7 @@ class MainWindow(QMainWindow):
         self.init_key_list(self.Cachelabel)
 
     def reRecognition(self):
+        print('>>>>Inside  reRecognition')
         img = my_read_image(self.filePath)
         if self.canvas.shapes:
             self.result_dic = []
@@ -2985,10 +2988,11 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(self, "Information", msg)
                     return
                 result = self.text_recognizer.predict(img_crop)[0]
+                result["rec_text"] = generate_rtl_label(result["rec_text"]) #sara added
                 storage = [(result["rec_text"], result["rec_score"])]
                 if result["rec_text"] != "":
                     if shape.line_color == DEFAULT_LOCK_COLOR:
-                        shape.label = result["rec_text"]
+                        shape.label = result["rec_text"]  ##########Here
                         storage.insert(0, box)
                         if self.kie_mode:
                             storage.append(kie_cls)
@@ -3044,6 +3048,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Information", "Draw a box!")
 
     def singleRerecognition(self):
+        print('>>>>Inside single reRecognition')
         img = my_read_image(self.filePath)
         for shape in self.canvas.selectedShapes:
             box = [[int(p.x()), int(p.y())] for p in shape.points]
@@ -3060,6 +3065,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Information", msg)
                 return
             result = self.text_recognizer.predict(img_crop)[0]
+            result["rec_text"] = generate_rtl_label(result["rec_text"]) #sara added
             storage = [(result["rec_text"], result["rec_score"])]
             if result["rec_text"] != "":
                 storage.insert(0, box)
@@ -3081,6 +3087,7 @@ class MainWindow(QMainWindow):
             self.setDirty()
 
     def TableRecognition(self):
+        print('>>>>Inside table recognition')
         """
         Table Recognition
         """
@@ -3142,6 +3149,8 @@ class MainWindow(QMainWindow):
             for i in range(result_len):
                 bbox = region["table_ocr_pred"]["rec_boxes"][i]
                 rec_text = region["table_ocr_pred"]["rec_texts"][i]
+                rec_text= generate_rtl_label(rec_text) #sara added
+
 
                 rext_bbox = [
                     [bbox[0], bbox[1]],
@@ -3229,6 +3238,7 @@ class MainWindow(QMainWindow):
         """
         re-recognise text in a cell
         """
+        print('>>>>Inside cell reRecognition')
         img = my_read_image(self.filePath)
         for shape in self.canvas.selectedShapes:
             box = [[int(p.x()), int(p.y())] for p in shape.points]
@@ -3259,6 +3269,7 @@ class MainWindow(QMainWindow):
                 for _bbox in bboxes:
                     patch = get_rotate_crop_image(img_crop, np.array(_bbox, np.float32))
                     rec_res = self.text_recognizer.predict(patch)[0]
+                    rec_res["rec_text"] = generate_rtl_label( rec_res["rec_text"]) #sara added
                     text = rec_res["rec_text"]
                     if text != "":
                         texts += text + (
@@ -3407,7 +3418,7 @@ class MainWindow(QMainWindow):
             choose_lang = lg_idx[current_text]
             if hasattr(self, "ocr"):
                 del self.ocr
-                self.ocr = PaddleOCR(
+                self.ocr = PaddleOCR(paddlex_config='ppocr.yaml',        
                     use_doc_orientation_classify=False,
                     use_textline_orientation=False,
                     use_doc_unwarping=False,
@@ -3527,15 +3538,36 @@ class MainWindow(QMainWindow):
                         img_crop = get_rotate_crop_image(
                             img, np.array(label["points"], np.float32)
                         )
+                        # img_name = (
+                        #     os.path.splitext(os.path.basename(idx))[0]
+                        #     + "_crop_"
+                        #     + str(i)
+                        #     + ".jpg"
+                        # )
+                        # cv2.imencode(".jpg", img_crop)[1].tofile(
+                        #     crop_img_dir + img_name
+                        # )
+
+                        #################################
+                        # Sara adjusted this block to save png instead of jpg
                         img_name = (
                             os.path.splitext(os.path.basename(idx))[0]
                             + "_crop_"
                             + str(i)
-                            + ".jpg"
+                            + ".png"
                         )
-                        cv2.imencode(".jpg", img_crop)[1].tofile(
+                        # 2. Set PNG compression level (0 to 9)
+                        # 0 = no compression (saves instantly, larger file size)
+                        # 9 = max compression (takes longer to save, smaller file size)
+                        # 3 is the typical OpenCV default. 
+                        encode_params = [int(cv2.IMWRITE_PNG_COMPRESSION), 3]
+                        
+                        # 3. Change imencode format to .png and pass the parameters
+                        cv2.imencode(".png", img_crop, encode_params)[1].tofile(
                             crop_img_dir + img_name
                         )
+                        #################################
+
                         f.write("crop_img/" + img_name + "\t")
                         f.write(label["transcription"] + "\n")
                 except KeyError as e:

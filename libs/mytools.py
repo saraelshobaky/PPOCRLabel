@@ -66,8 +66,7 @@ def convert_to_eastern_arabic(text: str) -> str:
 
 from PIL import Image as PILImage  #Added by Sara
 # Corrected my_read_image to load a 3-channel image robustly using PIL, then convert to OpenCV format
-def my_read_image(path):
-    
+def my_read_image(path):    
     scale = 0.6 #0.6
     try:
         pil_image = PILImage.open(path).convert("RGB") # Ensure 3 channels
@@ -78,4 +77,5 @@ def my_read_image(path):
         return None # Return None if image loading fails
     if scale < 1:
         cv_imageObj = cv2.resize(cv_imageObj, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        print(path)
     return cv_imageObj

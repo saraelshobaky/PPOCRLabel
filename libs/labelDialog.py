@@ -26,6 +26,10 @@ from libs.utils import newIcon
 
 logger = logging.getLogger("PPOCRLabel")
 
+from libs.mytools import convert_to_eastern_arabic
+
+
+
 
 class LabelDialog(QDialog):
     def __init__(self, text="Enter object label", parent=None, listItem=None):
@@ -34,6 +38,7 @@ class LabelDialog(QDialog):
         self.edit = QLineEdit()  # OLD
         # self.edit = QTextEdit()
         self.edit.setText(text)
+        # print(text)
         # self.edit.setValidator(labelValidator()) # 验证有效性
         self.edit.editingFinished.connect(self.postProcess)
 
@@ -63,6 +68,7 @@ class LabelDialog(QDialog):
         self.setLayout(layout)
 
     def validate(self):
+        self.edit.setText(convert_to_eastern_arabic(self.edit.text()))# Sara Added to convert english digits to Hindi (Arabic digits)
         try:
             if self.edit.text().trimmed():
                 self.accept()

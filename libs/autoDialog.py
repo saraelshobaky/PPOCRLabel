@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from libs.utils import newIcon
-from libs.mytools import my_read_image
+from libs.mytools import my_read_image, generate_rtl_label
 
 logger = logging.getLogger("PPOCRLabel")
 
@@ -36,6 +36,8 @@ class Worker(QThread):
         self.setStackSize(1024 * 1024)
 
     def run(self):
+        # print('>>>>>>>>>>inside autodialog:run')
+        self.ocr.export_paddlex_config_to_yaml("exported_autodialog_paddleOCR.yaml")
         try:
             findex = 0
             for img_path in self.img_list:
@@ -46,6 +48,7 @@ class Worker(QThread):
                         h, w, _ = img.shape
                         if h > 32 and w > 32:
                             result = self.ocr.predict(img)[0]
+                            
                             self.result_dic = []
                             for poly, text, score in zip(
                                 result["rec_polys"],
@@ -56,6 +59,7 @@ class Worker(QThread):
                                 poly_list = (
                                     poly.tolist() if hasattr(poly, "tolist") else poly
                                 )
+                                text = generate_rtl_label(text) #sara added to flip text characters 
                                 self.result_dic.append([poly_list, (text, score)])
                         else:
                             logger.warning(

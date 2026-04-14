@@ -163,7 +163,6 @@ cython_debug/
 
 #SKS added
 my.cmd
-train_data/*
 *.backup
 output/*
 tmp.py
@@ -174,3 +173,5 @@ logs/*
 *.tif
 fonts/*
 tmp/*
+my_paddle_readme.md
+training_data/*
