@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from libs.utils import newIcon
+from libs.mytools import my_read_image, generate_rtl_label
 
 logger = logging.getLogger("PPOCRLabel")
 
@@ -35,15 +36,17 @@ class Worker(QThread):
         self.setStackSize(1024 * 1024)
 
     def run(self):
+        # self.ocr.export_paddlex_config_to_yaml("exported_autodialog_paddleOCR.yaml")        
         try:
             findex = 0
             for img_path in self.img_list:
                 if self.handle == 0:
                     self.listValue.emit(img_path)
                     if self.model == "paddle":
-                        img = cv2.imdecode(
-                            np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_COLOR
-                        )
+                        img = my_read_image(img_path)
+                        # img = cv2.imdecode(
+                        #     np.fromfile(img_path, dtype=np.uint8), cv2.IMREAD_COLOR
+                        # )
                         if img is None:
                             logger.warning(
                                 "Failed to decode image file %s. The file may be corrupted or in an unsupported format.",
@@ -66,6 +69,7 @@ class Worker(QThread):
                                         if hasattr(poly, "tolist")
                                         else poly
                                     )
+                                    text = generate_rtl_label(text) #sara added to flip text characters 
                                     self.result_dic.append([poly_list, (text, score)])
                             else:
                                 logger.warning(
