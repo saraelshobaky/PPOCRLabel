@@ -140,6 +140,8 @@ logger = logging.getLogger("PPOCRLabel")
 
 __appname__ = "PPOCRLabel"
 
+from libs.mytools import my_read_image, generate_rtl_label #sara added
+
 LABEL_COLORMAP = label_colormap()
 
 
@@ -3151,6 +3153,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(self, "Information", msg)
                     return
                 result = self.text_recognizer.predict(img_crop)[0]
+                result["rec_text"] = generate_rtl_label(result["rec_text"]) #sara added
                 storage = [(result["rec_text"], result["rec_score"])]
                 if result["rec_text"] != "":
                     if shape.line_color == DEFAULT_LOCK_COLOR:
@@ -3266,6 +3269,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Information", msg)
                 return
             result = self.text_recognizer.predict(img_crop)[0]
+            result["rec_text"] = generate_rtl_label(result["rec_text"]) #sara added
             storage = [(result["rec_text"], result["rec_score"])]
             if result["rec_text"] != "":
                 storage.insert(0, box)
@@ -3348,6 +3352,7 @@ class MainWindow(QMainWindow):
             for i in range(result_len):
                 bbox = region["table_ocr_pred"]["rec_boxes"][i]
                 rec_text = region["table_ocr_pred"]["rec_texts"][i]
+                rec_text= generate_rtl_label(rec_text) #sara added
 
                 rext_bbox = [
                     [bbox[0], bbox[1]],
@@ -3464,6 +3469,7 @@ class MainWindow(QMainWindow):
                 for _bbox in bboxes:
                     patch = get_rotate_crop_image(img_crop, np.array(_bbox, np.float32))
                     rec_res = self.text_recognizer.predict(patch)[0]
+                    rec_res["rec_text"] = generate_rtl_label( rec_res["rec_text"]) #sara added
                     text = rec_res["rec_text"]
                     if text != "":
                         texts += text + (
@@ -3738,15 +3744,40 @@ class MainWindow(QMainWindow):
                         img_crop = get_rotate_crop_image(
                             img, np.array(label["points"], np.float32)
                         )
+
+                        ## Sara Commented
+                        # img_name = (
+                        #     os.path.splitext(os.path.basename(idx))[0]
+                        #     + "_crop_"
+                        #     + str(i)
+                        #     + ".jpg"
+                        # )
+                        # cv2.imencode(".jpg", img_crop)[1].tofile(
+                        #     crop_img_dir + img_name
+                        # )
+
+
+                        #################################
+                        # Sara adjusted this block to save png instead of jpg
                         img_name = (
                             os.path.splitext(os.path.basename(idx))[0]
                             + "_crop_"
                             + str(i)
-                            + ".jpg"
+                            + ".png"
                         )
-                        cv2.imencode(".jpg", img_crop)[1].tofile(
+                        # 2. Set PNG compression level (0 to 9)
+                        # 0 = no compression (saves instantly, larger file size)
+                        # 9 = max compression (takes longer to save, smaller file size)
+                        # 3 is the typical OpenCV default. 
+                        encode_params = [int(cv2.IMWRITE_PNG_COMPRESSION), 3]
+                        
+                        # 3. Change imencode format to .png and pass the parameters
+                        cv2.imencode(".png", img_crop, encode_params)[1].tofile(
                             crop_img_dir + img_name
                         )
+                        #################################
+
+                        
                         f.write("crop_img/" + img_name + "\t")
                         f.write(label["transcription"] + "\n")
                 except KeyError as e:
