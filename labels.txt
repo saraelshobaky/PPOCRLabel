@@ -1,0 +1,6 @@
+text
+title
+table
+figure
+header
+footer
