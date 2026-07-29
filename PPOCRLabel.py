@@ -3727,7 +3727,7 @@ class MainWindow(QMainWindow):
                 data = f.readlines()
                 for each in data:
                     file, label = each.split("\t")
-                    
+                     
                     if label:      
                         #sara added to remove any duplicates generated due to re-recognition                 
                         label = self.remove_duplicate_in_labels(label)                       

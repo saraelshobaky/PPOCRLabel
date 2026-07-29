@@ -10,7 +10,7 @@ import cv2
 
 
 def main():
-    folder_path = "training_data2/"
+    folder_path = "training_data3/"
     # Grab all file paths matching the extension
     image_paths = glob.glob(f'{folder_path}/*.tif')
 
