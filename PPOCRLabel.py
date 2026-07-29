@@ -241,6 +241,7 @@ class MainWindow(QMainWindow):
             use_chart_recognition=False,
             use_region_detection=False,
             device=self.gpu,
+            enable_mkldnn=False,
         )
 
         if os.path.exists("./data/paddle.png"):
@@ -2633,6 +2634,41 @@ class MainWindow(QMainWindow):
                 flags=None,
             )
 
+
+    #Sara generated to clean repeated 
+    def remove_duplicate_in_labels(self, labels_str):
+       
+        unique_labels = []
+        seen_points = set()
+
+
+        try:
+            labels = json.loads(labels_str)
+        except json.JSONDecodeError:
+            print(f"Failed to parse JSON ")
+       
+        
+        for label in labels:
+            print("=============")
+            print(label)
+            # Extract points and convert them to a tuple of tuples
+            # Example: [[684, 318], [814, 318]] -> ((684, 318), (814, 318))
+            
+            points = label.get('points', [])
+            points_signature = tuple(tuple(pt) for pt in points)
+            
+            # If we haven't seen these exact coordinates yet, keep the label
+            if points_signature not in seen_points:
+                seen_points.add(points_signature)
+                unique_labels.append(label)
+        
+        return json.dumps(unique_labels, ensure_ascii=False)
+                
+
+ 
+             
+
+        
     def importDirImages(self, dirpath, isDelete=False):
         if not self.mayContinue() or not dirpath:
             return
@@ -2641,10 +2677,13 @@ class MainWindow(QMainWindow):
 
         if not isDelete:
             self.loadFilestate(dirpath)
-            self.PPlabelpath = dirpath + "/Label.txt"
+
+            self.PPlabelpath = dirpath + "/Label.txt" 
             self.PPlabel = self.loadLabelFile(self.PPlabelpath)
+
             self.Cachelabelpath = dirpath + "/Cache.cach"
             self.Cachelabel = self.loadLabelFile(self.Cachelabelpath)
+
             if self.Cachelabel:
                 self.PPlabel = dict(self.Cachelabel, **self.PPlabel)
 
@@ -3682,14 +3721,22 @@ class MainWindow(QMainWindow):
             f = open(labelpath, "w", encoding="utf-8")
 
         else:
+            # #This step ensures to remove any old duplicates in the data #added by sara
+            # self.remove_duplicate_labels(labelpath, labelpath)
+
             with open(labelpath, "r", encoding="utf-8") as f:
                 data = f.readlines()
                 for each in data:
                     file, label = each.split("\t")
-                    if label:
+                    
+                    if label:      
+                        #sara added to remove any duplicates generated due to re-recognition                 
+                        label = self.remove_duplicate_in_labels(label)                       
                         label = label.replace("false", "False")
                         label = label.replace("true", "True")
                         label = label.replace("null", "None")
+                        
+                        
                         labeldict[file] = eval(label)
                     else:
                         labeldict[file] = []
