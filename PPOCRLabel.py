@@ -2649,8 +2649,7 @@ class MainWindow(QMainWindow):
        
         
         for label in labels:
-            print("=============")
-            print(label)
+           
             # Extract points and convert them to a tuple of tuples
             # Example: [[684, 318], [814, 318]] -> ((684, 318), (814, 318))
             

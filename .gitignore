@@ -179,4 +179,6 @@ tmp/*
 my_paddle_readme.md
 training_data/*
 training_data2/*
-training_data2_20260517/*
+training_data3/*
+training_data4/*
+*.zip
