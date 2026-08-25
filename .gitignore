@@ -178,8 +178,6 @@ fonts/*
 tmp/*
 my_paddle_readme.md
 training_data/*
-training_data2/*
-training_data3/*
-training_data4/*
+training_data*
 *.zip
 my_readme.txt
