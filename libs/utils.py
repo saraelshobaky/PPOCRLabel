@@ -139,55 +139,108 @@ def natural_sort(list, key=lambda s: s):
     list.sort(key=sort_key)
 
 
-def get_rotate_crop_image(img, points):
-    # Use Green's theory to judge clockwise or counterclockwise
-    # author: biyanhua
-    d = 0.0
-    for index in range(-1, 3):
-        d += (
-            -0.5
-            * (points[index + 1][1] + points[index][1])
-            * (points[index + 1][0] - points[index][0])
-        )
-    if d < 0:  # counterclockwise
-        tmp = np.array(points)
-        points[1], points[3] = tmp[3], tmp[1]
+# Adjusted this function to not rotate crop images
+def get_rotate_crop_image(img, points, rotate_narrow_crops=True):
+    """
+    Crop an axis-aligned rectangular region from `img` defined by `points`.
 
+    Assumes the region is NOT rotated, regardless of which corner the
+    labeler started dragging from (and therefore regardless of the order
+    the 4 points arrive in). Point order is ignored entirely — the true
+    top-left / bottom-right corners are derived from coordinate extremes.
+
+    Args:
+        img: source image (H, W, C)
+        points: 4 (x, y) points in any order/corner-start
+        rotate_narrow_crops: if True, rotate crops 90° when height/width >= 1.5
+            (kept from the original behavior for tall/vertical text lines;
+            set False if you don't want this)
+    """
     try:
-        img_crop_width = int(
-            max(
-                np.linalg.norm(points[0] - points[1]),
-                np.linalg.norm(points[2] - points[3]),
+        points = np.asarray(points, dtype=np.float32)
+        if points.shape != (4, 2):
+            raise ValueError(f"Expected 4 (x, y) points, got shape {points.shape}")
+
+        # Ignore point order/drag-direction entirely — derive true
+        # top-left and bottom-right from actual coordinate extremes.
+        x_min = int(np.floor(np.min(points[:, 0])))
+        x_max = int(np.ceil(np.max(points[:, 0])))
+        y_min = int(np.floor(np.min(points[:, 1])))
+        y_max = int(np.ceil(np.max(points[:, 1])))
+
+        # Clip to image bounds defensively — a drag can end up
+        # slightly outside the image edges.
+        h, w = img.shape[0:2]
+        x_min = max(0, x_min)
+        y_min = max(0, y_min)
+        x_max = min(w, x_max)
+        y_max = min(h, y_max)
+
+        if x_max <= x_min or y_max <= y_min:
+            raise ValueError(
+                f"Degenerate crop box: ({x_min},{y_min})-({x_max},{y_max})"
             )
-        )
-        img_crop_height = int(
-            max(
-                np.linalg.norm(points[0] - points[3]),
-                np.linalg.norm(points[1] - points[2]),
-            )
-        )
-        pts_std = np.float32(
-            [
-                [0, 0],
-                [img_crop_width, 0],
-                [img_crop_width, img_crop_height],
-                [0, img_crop_height],
-            ]
-        )
-        M = cv2.getPerspectiveTransform(points, pts_std)
-        dst_img = cv2.warpPerspective(
-            img,
-            M,
-            (img_crop_width, img_crop_height),
-            borderMode=cv2.BORDER_REPLICATE,
-            flags=cv2.INTER_CUBIC,
-        )
-        dst_img_height, dst_img_width = dst_img.shape[0:2]
-        if dst_img_height * 1.0 / dst_img_width >= 1.5:
-            dst_img = np.rot90(dst_img)
+
+        dst_img = img[y_min:y_max, x_min:x_max].copy()
+
+        if rotate_narrow_crops:
+            dst_img_height, dst_img_width = dst_img.shape[0:2]
+            if dst_img_height * 1.0 / dst_img_width >= 1.5:
+                dst_img = np.rot90(dst_img)
+
         return dst_img
     except Exception as e:
         logger.error("Error in image processing: %s", e)
+
+# def get_rotate_crop_image(img, points):
+#     # Use Green's theory to judge clockwise or counterclockwise
+#     # author: biyanhua
+#     d = 0.0
+#     for index in range(-1, 3):
+#         d += (
+#             -0.5
+#             * (points[index + 1][1] + points[index][1])
+#             * (points[index + 1][0] - points[index][0])
+#         )
+#     if d < 0:  # counterclockwise
+#         tmp = np.array(points)
+#         points[1], points[3] = tmp[3], tmp[1]
+
+#     try:
+#         img_crop_width = int(
+#             max(
+#                 np.linalg.norm(points[0] - points[1]),
+#                 np.linalg.norm(points[2] - points[3]),
+#             )
+#         )
+#         img_crop_height = int(
+#             max(
+#                 np.linalg.norm(points[0] - points[3]),
+#                 np.linalg.norm(points[1] - points[2]),
+#             )
+#         )
+#         pts_std = np.float32(
+#             [
+#                 [0, 0],
+#                 [img_crop_width, 0],
+#                 [img_crop_width, img_crop_height],
+#                 [0, img_crop_height],
+#             ]
+#         )
+#         M = cv2.getPerspectiveTransform(points, pts_std)
+#         dst_img = cv2.warpPerspective(
+#             img,
+#             M,
+#             (img_crop_width, img_crop_height),
+#             borderMode=cv2.BORDER_REPLICATE,
+#             flags=cv2.INTER_CUBIC,
+#         )
+#         dst_img_height, dst_img_width = dst_img.shape[0:2]
+#         if dst_img_height * 1.0 / dst_img_width >= 1.5:
+#             dst_img = np.rot90(dst_img)
+#         return dst_img
+#     except Exception as e:
+#         logger.error("Error in image processing: %s", e)
 
 
 def boxPad(box, imgShape, pad: int) -> np.array:
