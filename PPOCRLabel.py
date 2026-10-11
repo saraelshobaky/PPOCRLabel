@@ -142,6 +142,34 @@ __appname__ = "PPOCRLabel"
 
 from libs.mytools import my_read_image, generate_rtl_label #sara added
 
+
+
+
+CHAR25_TEXT_REC_SCORE_THRESH=0.1
+
+# Prevent aggressive downsampling of 2040px images to save tiny numbers
+# 2048, #Making it large 2048 let the border characters read well and not skipped
+# 960 solve error of long lines that skip spaces
+CHAR25_TEXT_DET_LIMIT_SIDE_LEN=640#1024  # limit_side_len: 64  # 960,1280 is the default for PPOCRv5
+
+# limit_type: min/max   
+# max: This prevents the model from "over-zooming" into tiny noise patterns.    
+CHAR25_TEXT_DET_LIMIT_TYPE='max'  
+
+# Lowered slightly to catch low-confidence isolated digits. 
+# Best is 0.1 # Keep box_thresh high to ensure only confident boxes remain                        
+CHAR25_TEXT_DET_BOX_THRESH=0.4
+
+# 1.6, # Lowered from 2.4 to prevent separate table columns from merging 
+# But have to increase it to 2.4 to get dots of characters like geem and beh to be read
+# Best is 2.5. Increasing it makes the detected box larger (extra pads). 
+CHAR25_TEXT_DET_UNCLIP_RATIO=2.0
+
+# Lowering this helps detect bordered faded text at the start or end of text
+# Best is 0.1 # Increase thresh to ignore background "ghosts"
+CHAR25_TEXT_DET_THRESH=0.2 #0.2,  3
+
+
 LABEL_COLORMAP = label_colormap()
 
 
@@ -212,6 +240,15 @@ class MainWindow(QMainWindow):
             "text_detection_model_name": self.det_model_name,
             "text_recognition_model_name": self.rec_model_name,
             "enable_mkldnn": False,
+            "text_rec_score_thresh":CHAR25_TEXT_REC_SCORE_THRESH,
+            "text_det_limit_side_len":CHAR25_TEXT_DET_LIMIT_SIDE_LEN, 
+            "text_det_limit_type":CHAR25_TEXT_DET_LIMIT_TYPE,                                                 
+            "text_det_box_thresh":CHAR25_TEXT_DET_BOX_THRESH,
+            "text_det_unclip_ratio":CHAR25_TEXT_DET_UNCLIP_RATIO,
+            "text_det_thresh":CHAR25_TEXT_DET_THRESH, 
+            "return_word_box":True,
+
+
         }
 
         if self.det_model_dir is not None:
@@ -230,6 +267,12 @@ class MainWindow(QMainWindow):
         self.text_detector = TextDetection(
             model_name=self.det_model_name,
             model_dir=self.det_model_dir,
+            limit_side_len=CHAR25_TEXT_DET_LIMIT_SIDE_LEN, 
+            limit_type=CHAR25_TEXT_DET_LIMIT_TYPE,
+            thresh=CHAR25_TEXT_REC_SCORE_THRESH, 
+            box_thresh=CHAR25_TEXT_DET_BOX_THRESH, 
+            unclip_ratio=CHAR25_TEXT_DET_UNCLIP_RATIO,
+
             device=self.gpu,
         )
         self.table_ocr = PPStructureV3(
@@ -3662,6 +3705,13 @@ class MainWindow(QMainWindow):
                     "use_doc_unwarping": False,
                     "text_detection_model_name": self.det_model_name,
                     "text_recognition_model_name": self.rec_model_name,
+                    "text_rec_score_thresh":CHAR25_TEXT_REC_SCORE_THRESH,
+                    "text_det_limit_side_len":CHAR25_TEXT_DET_LIMIT_SIDE_LEN, 
+                    "text_det_limit_type":CHAR25_TEXT_DET_LIMIT_TYPE,                                                 
+                    "text_det_box_thresh":CHAR25_TEXT_DET_BOX_THRESH,
+                    "text_det_unclip_ratio":CHAR25_TEXT_DET_UNCLIP_RATIO,
+                    "text_det_thresh":CHAR25_TEXT_DET_THRESH, 
+                    "return_word_box":True,
                     "lang": choose_lang,
                     "device": self.gpu,
                 }
@@ -3673,6 +3723,7 @@ class MainWindow(QMainWindow):
                     params["text_line_orientation_model_dir"] = self.cls_model_dir
 
                 self.ocr = PaddleOCR(**params)
+                
             if choose_lang in ["ch", "en"]:
                 if hasattr(self, "table_ocr"):
                     del self.table_ocr
